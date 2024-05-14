@@ -49,8 +49,8 @@ for nc_path in nc_paths:
     pollutants = {
         'CO': CO,
         'NOx': NOx,
-        'PM2p5': PM2p5,
-        'VOC': VOC
+        'PM2.5': PM2p5,
+        'VOCs': VOC
     }
 
     pollutants_da[correction_name] = []
