@@ -7,12 +7,15 @@
 This script is used to ...
 """
 
-import glob
-import os.path
-import numpy as np
-import netCDF4 as nc  # 读取NC为文件
 from scipy.ndimage import zoom
 from osgeo import gdal, osr
+import geopandas as gpd
+import rasterio
+from rasterio.plot import show
+import matplotlib.pyplot as plt
+import numpy as np
+import cartopy.crs as ccrs
+
 
 # 进行GLT校正
 def data_glt(out_path, src_ds, src_x, src_y, out_res, zoom_scale=6, glt_range=None, windows_size=7, **kwargs):
@@ -133,3 +136,43 @@ def write_tiff(out_path, dataset, transform, out_res, nodata=-9999, mask_path=No
     gdal.Warp(out_path, mem_ds,
               format='GTiff', cutlineDSName=mask_path, cropToCutline=True,
               srcNodata=nodata, dstNodata=nodata, dstSRS='EPSG:4326')
+
+
+def plot_var(var_path, out_path=None, shp_path=None, title_name=None, cbar_name=None):
+    # 设置字体
+    plt.rcParams['font.family'] = 'Times New Roman'
+
+    # 读取波段
+    with rasterio.open(var_path, 'r') as src:
+        var = np.float32(src.read(1))  # 读取单波段
+        var_transform = src.transform  # 读取仿射变换参数, 为后续绘制geo图
+        # 设置无效值
+        nodata_value = src.nodata
+        var[var == nodata_value] = np.nan
+
+    # 绘制
+    fig, ax = plt.subplots(figsize=(12, 10), subplot_kw={'projection': ccrs.PlateCarree()})
+    # fig, ax = plt.subplots()
+    # 绘制栅格
+    show(var, transform=var_transform, ax=ax, cmap='plasma', with_bounds=True)
+    # 绘制shp边界
+    if shp_path is not None:
+        gdf = gpd.read_file(shp_path)
+        gdf.plot(ax=ax, facecolor='none', edgecolor='#6D8114', linewidth=1.5)
+    # 绘制格网
+    gl = ax.gridlines(draw_labels=True, linewidth=1.0, color='gray', linestyle='--', alpha=0.6)
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {'size': 20, 'color': 'black', 'weight': 'bold'}
+    gl.ylabel_style = {'size': 20, 'color': 'black', 'weight': 'bold'}
+    # 绘制色带
+    cbar = plt.colorbar(ax.images[0], ax=ax, orientation='vertical', shrink=0.8, pad=0.02)
+    cbar.ax.tick_params(labelsize=16)  # 调整色带刻度标签大小
+    cbar.set_label(cbar_name, size=24, weight='bold')
+    # 绘制标题
+    plt.title(title_name, fontsize=26, weight='bold')
+
+    plt.tight_layout()
+    if out_path is not None:
+        plt.savefig(out_path, dpi=100)
+    plt.show()

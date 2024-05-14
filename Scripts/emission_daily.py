@@ -27,8 +27,9 @@ geo_path = r'I:\InnovationAndEntrepreneurshipOfCollegeStudents\PollutionFromDies
 out_dir = r'I:\InnovationAndEntrepreneurshipOfCollegeStudents\PollutionFromDiesel\Data\time_series'
 start_date = datetime(2022, 9, 30, 8)  # 原是2022/9/30-0(UTC), 现为北京时间
 end_date = datetime(2022, 11, 1, 7)
-time_series = pd.date_range(start_date, end_date, freq='H')
+time_series = pd.date_range(start_date, end_date, freq='h')
 no_data_value = -9999
+gdal.UseExceptions()
 # time_series = pd.date_range(start_date, end_date, freq='H', tz='UTC')  # 默认UTC
 # time_series = time_series.tz_convert('Asia/Shanghai')  # UTC转北京时间
 
@@ -75,7 +76,7 @@ for nc_path in nc_paths:
         da = da.sel(time=da['time'].dt.month.isin(10))  # 选择10月份数据集
         da_sum_day_night = da.groupby('D_N').sum()
         # 输出
-        for group_name, group_data in da_sum_day_night.groupby('D_N'):
+        for group_name, group_data in da_sum_day_night.groupby('D_N', squeeze=False):
             out_name = '{}_{}_{}.tiff'.format(pollutant_name, group_name, correction_name)
             out_path = os.path.join(out_dir, 'TIFFs', out_name)
             data_glt(out_path, [group_data.fillna(no_data_value)], lon, lat, 0.02)
@@ -95,7 +96,7 @@ for nc_path in nc_paths:
 
     pollutants_da[correction_name] = pd.concat(pollutants_da[correction_name], axis=1)
 pollutants_da = xr.Dataset({key: xr.DataArray(value, dims=['date', 'pollutant_name']) for key, value in pollutants_da.items()}).to_array()
-for pollutants_name in pollutants_da.coords['pollutant_name'].values:
-    out_path = os.path.join(out_dir, '{}_sum_daily.xlsx'.format(pollutants_name))
+for pollutant_name in pollutants_da.coords['pollutant_name'].values:
+    out_path = os.path.join(out_dir, '{}_sum_daily.xlsx'.format(pollutant_name))
     pollutants_da.sel(pollutant_name=pollutant_name).transpose().to_pandas().to_excel(out_path)
 print('程序结束')
