@@ -36,6 +36,7 @@ no_data_value = -9999
 with nc.Dataset(geo_path, 'r') as f:
     lon, lat = np.asarray(f['LON'][:].squeeze()), np.asarray(f['LAT'][:].squeeze())
 nc_paths = glob.glob(os.path.join(in_dir, 'NCEMIS_*.nc'))
+pollutants_da = {}
 for nc_path in nc_paths:
     correction_name = os.path.basename(nc_path).split('_')[-1].split('.')[0]
     with nc.Dataset(nc_path) as f:
@@ -51,14 +52,14 @@ for nc_path in nc_paths:
         'VOC': VOC
     }
 
-    df = []
+    pollutants_da[correction_name] = []
     for pollutant_name, pollutant in pollutants.items():
         # 按日求和
         da = xr.DataArray(pollutant, coords=[time_series, np.arange(rows), np.arange(cols)], dims=['time', 'x', 'y'])
         da = da.sel(time=da['time'].dt.month.isin(10))
         da_sum_daily = da.groupby('time.date').sum()
         da_sum_daily = da_sum_daily.sum(dim=['x', 'y'])
-        df.append(da_sum_daily.to_dataframe(name=pollutant_name))
+        pollutants_da[correction_name].append(da_sum_daily.to_dataframe(name=pollutant_name))
 
         # 按白天黑夜求和
         da = xr.DataArray(
@@ -92,6 +93,9 @@ for nc_path in nc_paths:
 
         print('已处理: {}-{}'.format(pollutant_name, correction_name))
 
-    df = pd.concat(df, axis=1)
-    df.to_csv(os.path.join(out_dir, '{}_sum_daily.csv'.format(correction_name)))
+    pollutants_da[correction_name] = pd.concat(pollutants_da[correction_name], axis=1)
+pollutants_da = xr.Dataset({key: xr.DataArray(value, dims=['date', 'pollutant_name']) for key, value in pollutants_da.items()}).to_array()
+for pollutants_name in pollutants_da.coords['pollutant_name'].values:
+    out_path = os.path.join(out_dir, '{}_sum_daily.xlsx'.format(pollutants_name))
+    pollutants_da.sel(pollutant_name=pollutant_name).transpose().to_pandas().to_excel(out_path)
 print('程序结束')
